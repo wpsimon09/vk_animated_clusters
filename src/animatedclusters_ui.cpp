@@ -93,7 +93,7 @@ void uiPlot(std::string plotName, std::string tooltipFormat, const std::vector<T
 
     ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
     ImPlot::PlotShaded("", data.data(), (int)data.size(), -INFINITY, 1.0, 0.0,
-                       ImPlotSpec(ImPlotProp_FillColor, (ImU32)plotColor, ImPlotProp_FillAlpha, 0.25f));
+                       ImPlotSpec(ImPlotProp_FillColor, (ImU32)plotColor, ImPlotProp_FillAlpha, 0.75f));
 
     if(ImPlot::IsPlotHovered())
     {
