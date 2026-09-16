@@ -35,7 +35,8 @@
 layout(push_constant) uniform pushData
 {
   uint instanceID;
-} push;
+}
+push;
 
 layout(scalar, binding = BINDINGS_FRAME_UBO, set = 0) uniform frameConstantsBuffer
 {
@@ -62,6 +63,7 @@ layout(location = 0) in Interpolants
 {
   vec3      wPos;
   vec3      wNormal;
+  vec3      meshletColor;
   flat uint clusterID;
 }
 IN;
@@ -87,7 +89,7 @@ void main()
 
   uint visClusterID = IN.clusterID;
 #if LINKED_MESH_SHADER
-  if (view.visualize == VISUALIZE_TRIANGLES)
+  if(view.visualize == VISUALIZE_TRIANGLES)
   {
     visClusterID ^= gl_PrimitiveID + 1;
   }
@@ -96,8 +98,8 @@ void main()
   const float overHeadLight = 1.0f;
   const float ambientLight  = 1.f;
 
-  out_Color = shading(push.instanceID, IN.wPos, wNormal, visClusterID, overHeadLight, ambientLight);
-
+  out_Color     = shading(push.instanceID, IN.wPos, wNormal, visClusterID, overHeadLight, ambientLight);
+  out_Color.xyz = IN.meshletColor;
 #if DEBUG_VISUALIZATION
   if(view.doWireframe != 0 || (view.visFilterInstanceID == push.instanceID && view.visFilterClusterID == IN.clusterID))
   {

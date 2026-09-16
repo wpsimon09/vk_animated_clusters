@@ -29,14 +29,15 @@
 #extension GL_EXT_scalar_block_layout : enable
 
 #extension GL_EXT_mesh_shader : require
-#extension GL_EXT_control_flow_attributes: require
+#extension GL_EXT_control_flow_attributes : require
 
 #include "shaderio.h"
 
 layout(push_constant) uniform pushData
 {
   uint instanceID;
-} push;
+}
+push;
 
 layout(scalar, binding = BINDINGS_FRAME_UBO, set = 0) uniform frameConstantsBuffer
 {
@@ -55,11 +56,14 @@ layout(scalar, binding = BINDINGS_RENDERINSTANCES_SSBO, set = 0) buffer renderIn
 
 ////////////////////////////////////////////
 
-layout(location=0) out Interpolants {
-  vec3 wPos;
-  vec3 wNormal;
+layout(location = 0) out Interpolants
+{
+  vec3      wPos;
+  vec3      wNormal;
+  vec3      meshletColor;
   flat uint clusterID;
-} OUT[];
+}
+OUT[];
 
 ////////////////////////////////////////////
 
@@ -79,11 +83,11 @@ layout(location=0) out Interpolants {
 #define CLUSTER_DEDICATED_VERTICES 0
 #endif
 
-layout(local_size_x=32) in;
-layout(max_vertices=CLUSTER_VERTEX_COUNT, max_primitives=CLUSTER_TRIANGLE_COUNT) out;
+layout(local_size_x = 32) in;
+layout(max_vertices = CLUSTER_VERTEX_COUNT, max_primitives = CLUSTER_TRIANGLE_COUNT) out;
 layout(triangles) out;
 
-const uint MESHLET_VERTEX_ITERATIONS   = ((CLUSTER_VERTEX_COUNT   + MESHSHADER_WORKGROUP_SIZE - 1) / MESHSHADER_WORKGROUP_SIZE);
+const uint MESHLET_VERTEX_ITERATIONS = ((CLUSTER_VERTEX_COUNT + MESHSHADER_WORKGROUP_SIZE - 1) / MESHSHADER_WORKGROUP_SIZE);
 const uint MESHLET_TRIANGLE_ITERATIONS = ((CLUSTER_TRIANGLE_COUNT + MESHSHADER_WORKGROUP_SIZE - 1) / MESHSHADER_WORKGROUP_SIZE);
 
 ////////////////////////////////////////////
@@ -91,38 +95,38 @@ const uint MESHLET_TRIANGLE_ITERATIONS = ((CLUSTER_TRIANGLE_COUNT + MESHSHADER_W
 void main()
 {
   RenderInstance instance = instances[push.instanceID];
-  
+
   Cluster cluster = Clusters_in(instance.clusters).d[gl_WorkGroupID.x];
-  
-  uint vertMax = cluster.numVertices-1;
-  uint triMax  = cluster.numTriangles-1;
+
+  uint vertMax = cluster.numVertices - 1;
+  uint triMax  = cluster.numTriangles - 1;
 
   // We keep things simple and avoid per-triangle culling. It reduces
   // the complexity of the mesh shader and may not always be worth it.
 
   SetMeshOutputsEXT(cluster.numVertices, cluster.numTriangles);
-  
+
   vec3s_in oPositions = vec3s_in(instance.positions);
   vec3s_in oNormals   = vec3s_in(instance.normals);
-  
+
 #if !CLUSTER_DEDICATED_VERTICES
   // the global vertex indices used within this cluster
-  uints_in  localVertices  = uints_in(instance.clusterLocalVertices);
+  uints_in localVertices = uints_in(instance.clusterLocalVertices);
 #endif
   // the local triangle indices used within this cluster
   uint8s_in localTriangles = uint8s_in(instance.clusterLocalTriangles);
-  
+
   mat4 worldMatrix   = instance.worldMatrix;
   mat3 worldMatrixIT = transpose(inverse(mat3(worldMatrix)));
 
   // We unroll to force loading vertices & triangles in advance.
-  // This reduces latency / dependent loads in the shader. 
+  // This reduces latency / dependent loads in the shader.
   // Because the cluster generators will mostly saturate packing
   // triangles and vertices in a cluster, we normally hardly waste
   // any loading.
 
   [[unroll]]
-  for (uint i = 0; i < uint(MESHLET_VERTEX_ITERATIONS); i++)
+  for(uint i = 0; i < uint(MESHLET_VERTEX_ITERATIONS); i++)
   {
     uint vert = gl_LocalInvocationID.x + i * MESHSHADER_WORKGROUP_SIZE;
     // Clamp the load because we force processing over max vertices.
@@ -139,31 +143,38 @@ void main()
 #endif
 
     vec3 oPos = oPositions.d[vertexIndex];
-    vec4 wPos = worldMatrix * vec4(oPos,1.0f);
-    
+    vec4 wPos = worldMatrix * vec4(oPos, 1.0f);
+
     vec3 oNormal = oNormals.d[vertexIndex];
-    
-    if (vert <= vertMax) {
+
+    if(vert <= vertMax)
+    {
+      uint meshletID = gl_LocalInvocationID.x;
+      uint hash      = meshletID * 747796405u + 2891336453u;
+      vec3 color     = vec3((hash & 0xFF) / 255.0, ((hash >> 8) & 0xFF) / 255.0, ((hash >> 16) & 0xFF) / 255.0);
+
       gl_MeshVerticesEXT[vert].gl_Position = view.viewProjMatrix * wPos;
-      OUT[vert].wPos    = wPos.xyz;
-      OUT[vert].wNormal  = normalize(worldMatrixIT * oNormal);
-      OUT[vert].clusterID = gl_WorkGroupID.x;
+      OUT[vert].wPos                       = wPos.xyz;
+      OUT[vert].wNormal                    = normalize(worldMatrixIT * oNormal);
+      OUT[vert].meshletColor               = color;
+      OUT[vert].clusterID                  = gl_WorkGroupID.x;
     }
   }
-  
+
   [[unroll]]
-  for (uint i = 0; i < uint(MESHLET_TRIANGLE_ITERATIONS); i++)
+  for(uint i = 0; i < uint(MESHLET_TRIANGLE_ITERATIONS); i++)
   {
-    uint tri = gl_LocalInvocationID.x + i * MESHSHADER_WORKGROUP_SIZE;
+    uint tri     = gl_LocalInvocationID.x + i * MESHSHADER_WORKGROUP_SIZE;
     uint triLoad = min(tri, triMax);
-    
+
     uvec3 indices = uvec3(localTriangles.d[cluster.firstLocalTriangle + triLoad * 3 + 0],
                           localTriangles.d[cluster.firstLocalTriangle + triLoad * 3 + 1],
                           localTriangles.d[cluster.firstLocalTriangle + triLoad * 3 + 2]);
 
-     if (tri <= triMax) {
-        gl_PrimitiveTriangleIndicesEXT[tri] = indices;
-        gl_MeshPrimitivesEXT[tri].gl_PrimitiveID = int(tri);
-     }
+    if(tri <= triMax)
+    {
+      gl_PrimitiveTriangleIndicesEXT[tri]      = indices;
+      gl_MeshPrimitivesEXT[tri].gl_PrimitiveID = int(tri);
+    }
   }
 }

@@ -53,8 +53,8 @@ vec4 shading(uint instanceID, vec3 wPos, vec3 wNormal, uint clusterID, float ove
 
   // Ambient
   float ambientIntensity = 1.f;
-  vec3  ambientLighting  = ambientOcclusion * materialAlbedo* ambientIntensity
-                         * mix(groundColor, skyColor, dot(normal, view.wUpDir.xyz) * 0.5 + 0.5) ;
+  vec3  ambientLighting  = ambientOcclusion * materialAlbedo * ambientIntensity
+                         * mix(groundColor, skyColor, dot(normal, view.wUpDir.xyz) * 0.5 + 0.5);
 
   // Light mixer
   float lightMixer             = view.lightMixer;
@@ -62,7 +62,7 @@ vec4 shading(uint instanceID, vec3 wPos, vec3 wNormal, uint clusterID, float ove
   float overheadLightIntensity = lightMixer;
 
   // Flashlight
-  vec3  flashlightLighting  = vec3(0.f);
+  vec3 flashlightLighting = vec3(0.f);
   {
     // Use a flashlight intensity similar to the sky color for average luminance consistency
     flashlightIntensity *= max(skyColor.x, max(skyColor.y, skyColor.z));
@@ -76,15 +76,15 @@ vec4 shading(uint instanceID, vec3 wPos, vec3 wNormal, uint clusterID, float ove
   vec3 overheadLightColor = view.skyParams.sunColor * view.skyParams.sunIntensity;
   vec3 overheadLighting   = vec3(overheadLightIntensity * overheadLight * overheadLightColor);
   {
-    vec3 lightDir = normalize(view.skyParams.sunDirection);
-    vec3 reflDir  = normalize(-reflect(lightDir, normal));
+    vec3  lightDir   = normalize(view.skyParams.sunDirection);
+    vec3  reflDir    = normalize(-reflect(lightDir, normal));
     float diffuse    = max(0, dot(normal, lightDir));
     float specular   = pow(max(0, dot(reflDir, eyeDir)), 16) * 0.3;
     float bsdf       = diffuse + specular;
     overheadLighting = overheadLighting * materialAlbedo * bsdf;
   }
 
-  color.xyz = overheadLighting + flashlightLighting + ambientLighting;
+  color.xyz = ambientLighting;  //overheadLighting + flashlightLighting +
   color.w   = 1.0;
   return color;
 }
@@ -126,7 +126,7 @@ float stipple(in float stippleRepeats, in float stippleLength, in float edgePos)
 vec3 addWireframe(vec3 color, vec3 barycentrics, bool frontFacing, vec3 barycentricsDerivatives, vec3 wireColor)
 {
   float oThickness    = view.wireThickness * 0.5;
-  float thickness     = oThickness * 0.5;  // Thickness for both side of the edge, must be divided by 2
+  float thickness     = oThickness * 0.5;                 // Thickness for both side of the edge, must be divided by 2
   float smoothing     = oThickness * view.wireSmoothing;  // Could be thickness
   bool  enableStipple = (view.wireStipple == 1);
 
@@ -219,7 +219,8 @@ vec3 offsetRay(vec3 p, vec3 dir, vec3 geonrm)
 
 float ambientOcclusion(vec3 wPos, vec3 wNormal, uint32_t sampleCount, float radius)
 {
-  if (sampleCount == 0) return 0.7f;
+  if(sampleCount == 0)
+    return 0.7f;
 
   uint32_t seed = wangHash(gl_LaunchIDEXT.x) ^ wangHash(gl_LaunchIDEXT.y);
   vec3     z    = wNormal;
@@ -246,7 +247,7 @@ float ambientOcclusion(vec3 wPos, vec3 wNormal, uint32_t sampleCount, float radi
     }
   }
   float linearAo = float(sampleCount - occlusion) / float(sampleCount);
-  return max(0.2f, linearAo* linearAo);
+  return max(0.2f, linearAo * linearAo);
 }
 
 // Returns 0.0 if there is a hit along the light direction and 1.0, if nothing was hit
@@ -314,7 +315,6 @@ ivec2 objectToPixel(vec3 objectPos)
   pPos.xy *= vec2(gl_LaunchSizeEXT.xy);
   return ivec2(pPos.xy);
 }
-
 
 
 #endif  // SUPPORTS_RT
